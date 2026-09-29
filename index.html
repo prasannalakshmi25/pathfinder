@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pathfinder – AI Career & Skill Assistant</title>
+<script type="module" src="supabase.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;800&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0e1a2b;--bg2:#15263d;--ink:#eaf1f8;--mute:#93a7bd;--line:#26405e;--a:#5eead4;--b:#fbbf24;--c:#f472b6;--r:14px}
+*{box-sizing:border-box;margin:0}
+body{font:16px/1.6 Outfit,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;line-height:1.15}
+nav{position:sticky;top:0;z-index:20;display:flex;gap:6px;align-items:center;padding:10px 20px;background:#0e1a2bee;border-bottom:1px solid var(--line);overflow-x:auto}
+nav b{font-family:Fraunces,serif;font-size:20px;margin-right:auto;color:var(--a);white-space:nowrap}
+nav button{background:none;border:0;color:var(--mute);font:inherit;padding:8px 14px;border-radius:99px;cursor:pointer;white-space:nowrap}
+nav button.on,nav button:hover{background:var(--bg2);color:var(--ink)}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--b);outline-offset:2px}
+section{display:none;max-width:1100px;margin:auto;padding:36px 20px 80px}
+section.on{display:block}
+.hero{text-align:center;padding:10px 0 20px}
+.hero h1{font-size:clamp(34px,6vw,60px);font-weight:800}
+.hero p{color:var(--mute);max-width:560px;margin:12px auto 0}
+/* roadmap */
+.map{position:relative;max-width:760px;margin:30px auto;padding:20px 0}
+.map:before{content:"";position:absolute;left:50%;top:0;bottom:0;border-left:3px dashed var(--line)}
+.node{position:relative;width:50%;padding:0 34px 40px 0;text-align:right}
+.node:nth-child(even){margin-left:50%;padding:0 0 40px 34px;text-align:left}
+.node button{all:unset;cursor:pointer;display:inline-block;max-width:290px;background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:14px 18px;transition:.2s}
+.node button:hover{border-color:var(--a);transform:translateY(-3px)}
+.node button:focus-visible{outline:2px solid var(--b)}
+.node small{color:var(--mute);display:block}
+.node h3{font-size:19px}
+.dot{position:absolute;right:-19px;top:8px;width:38px;height:38px;border-radius:50%;background:var(--bg);border:3px solid var(--a);display:grid;place-items:center;font-size:17px;z-index:1}
+.node:nth-child(even) .dot{right:auto;left:-19px}
+.node.done .dot{background:var(--a)}
+.node.done h3:after{content:" ✓";color:var(--a)}
+@media(max-width:640px){.map:before{left:19px}.node,.node:nth-child(even){width:100%;margin:0;padding:0 0 30px 56px;text-align:left}.dot,.node:nth-child(even) .dot{left:0;right:auto}}
+/* modal */
+#dlg{position:fixed;inset:0;background:#000a;display:none;z-index:50;justify-content:flex-end}
+#dlg.on{display:flex}
+#dlg .p{width:min(560px,100%);background:var(--bg2);height:100%;overflow:auto;padding:28px;border-left:1px solid var(--line);animation:sl .25s}
+@keyframes sl{from{transform:translateX(40px);opacity:0}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.p h2{font-size:30px;margin:6px 0 10px}
+.p h4{margin:20px 0 6px;color:var(--b);font-weight:600}
+.p li{margin:0 0 4px 20px;color:#cfdbe8}
+.tag{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:2px 12px;margin:0 6px 6px 0;font-size:14px;color:var(--mute)}
+.btn{background:var(--a);color:#062a26;border:0;border-radius:99px;padding:10px 20px;font:600 15px Outfit;cursor:pointer}
+.btn.g{background:none;color:var(--ink);border:1px solid var(--line)}
+/* cards */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:22px}
+.card h3{margin-bottom:10px;font-size:21px}
+.row{display:flex;justify-content:space-between;gap:10px;font-size:15px;margin-top:10px;color:var(--mute)}
+.bar{height:8px;background:var(--bg);border-radius:9px;overflow:hidden;margin-top:4px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--a),var(--b));border-radius:9px;transition:width .6s}
+input[type=range]{width:100%;accent-color:var(--a)}
+textarea,select,input[type=text]{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit}
+textarea{min-height:200px;resize:vertical}
+.chip{cursor:pointer;user-select:none}
+.chip.on{background:var(--a);color:#062a26;border-color:var(--a)}
+.big{font:800 46px Fraunces,serif;color:var(--a)}
+h2.t{font-size:32px;margin-bottom:6px}
+.sub{color:var(--mute);margin-bottom:22px}
+/* chat */
+#log{height:380px;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:6px}
+.m{max-width:85%;padding:10px 14px;border-radius:14px;background:var(--bg);white-space:pre-wrap}
+.m.u{align-self:flex-end;background:var(--a);color:#062a26}
+.ask{display:flex;gap:8px;margin-top:12px}
+.ok{color:var(--a)}.no{color:var(--c)}
+@media print{nav,#dlg,.noprint{display:none!important}body{background:#fff;color:#000}.card{background:#fff;border-color:#999;color:#000}.sub,.row{color:#333}}
+
+:root{--bg:#070f1c;--bg2:#0f1d33;--a:#2dd4bf;--b:#fbbf24;--c:#fb7185;--line:#22385a;--hero:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 420' preserveAspectRatio='xMidYMid slice'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%230a1a45'/%3E%3Cstop offset='1' stop-color='%23124063'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='1200' height='420' fill='url(%23g)'/%3E%3Cg fill='%23fff' opacity='.7'%3E%3Ccircle cx='90' cy='50' r='2'/%3E%3Ccircle cx='260' cy='90' r='1.5'/%3E%3Ccircle cx='430' cy='40' r='2'/%3E%3Ccircle cx='620' cy='80' r='1.5'/%3E%3Ccircle cx='790' cy='35' r='2'/%3E%3Ccircle cx='1120' cy='70' r='1.5'/%3E%3C/g%3E%3Ccircle cx='960' cy='120' r='48' fill='%23fbbf24' opacity='.85'/%3E%3Cpath d='M0 420V300L160 190 300 290 470 140 640 280 800 170 980 290 1100 210 1200 280V420Z' fill='%23133f68'/%3E%3Cpath d='M0 420V350L200 270 380 340 560 250 760 340 940 260 1200 350V420Z' fill='%230d2b4d'/%3E%3Cpath d='M-10 405C200 345 300 385 480 325S760 265 900 305 1100 235 1220 255' fill='none' stroke='%232dd4bf' stroke-width='3' stroke-dasharray='10 10'/%3E%3C/svg%3E")}
+body{background:radial-gradient(900px 500px at 85% -10%,#1d4ed855,transparent),radial-gradient(700px 500px at -10% 35%,#2dd4bf22,transparent),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Ccircle cx='2' cy='2' r='1' fill='%23fff' opacity='.09'/%3E%3C/svg%3E"),var(--bg);background-attachment:fixed}
+nav{backdrop-filter:blur(12px);background:#070f1ccc}
+.card{background:linear-gradient(160deg,#12233d99,#0b172a99);box-shadow:0 10px 30px #0006}
+.card:hover{border-color:#2dd4bf66}
+.btn{background:linear-gradient(135deg,#2dd4bf,#60a5fa);box-shadow:0 6px 18px #2dd4bf33}
+.btn.g{background:#ffffff0d;box-shadow:none}
+.node button{background:linear-gradient(160deg,#12233d,#0b172a)}
+.dot{box-shadow:0 0 0 6px #2dd4bf22}
+h2.t{font-size:40px;background:linear-gradient(90deg,#fff,#2dd4bf);-webkit-background-clip:text;background-clip:text;color:transparent}
+section:not(#roadmap)::before{content:"";display:block;height:130px;border-radius:20px;margin-bottom:26px;border:1px solid var(--line);background:linear-gradient(#0000 40%,#070f1c),var(--hero) center 65%/cover;opacity:.7}
+.hero{border-radius:26px;border:1px solid var(--line);padding:72px 22px 56px;background:linear-gradient(#070f1c00 40%,#070f1c),var(--hero) center/cover;box-shadow:0 20px 60px #0008}
+.hero h1{max-width:760px;margin:auto;text-shadow:0 2px 20px #000a}
+.hero p{color:#c3d2e3}
+.cta{display:flex;gap:12px;justify-content:center;margin:26px 0;flex-wrap:wrap}
+.stats{display:flex;gap:34px;justify-content:center;color:var(--mute);flex-wrap:wrap}
+.stats b{display:block;font:800 30px Fraunces,serif;color:var(--b)}
+footer{text-align:center;color:var(--mute);padding:30px 20px;border-top:1px solid var(--line)}
+@media print{section::before,footer{display:none!important}}
+
+[data-id=roadmap],#roadmap{--a:#2dd4bf;--a2:#60a5fa}[data-id=assess],#assess{--a:#a78bfa;--a2:#f472b6}[data-id=careers],#careers{--a:#fbbf24;--a2:#fb923c}
+[data-id=resume],#resume{--a:#f472b6;--a2:#fb7185}[data-id=dash],#dash{--a:#60a5fa;--a2:#818cf8}[data-id=jobs],#jobs{--a:#34d399;--a2:#2dd4bf}
+[data-id=interview],#interview{--a:#fb923c;--a2:#f87171}[data-id=plan],#plan{--a:#22d3ee;--a2:#3b82f6}[data-id=ai],#ai{--a:#c084fc;--a2:#a78bfa}
+:root{--a2:#60a5fa}
+nav button[data-id]{border:1px solid var(--a);color:var(--a);font-weight:500}
+nav button[data-id].on,nav button[data-id]:hover{background:linear-gradient(135deg,var(--a),var(--a2));color:#06121f}
+nav .acct{background:linear-gradient(135deg,#f43f5e,#f59e0b);color:#fff;font-weight:600}
+.btn{background:linear-gradient(135deg,var(--a),var(--a2));color:#06121f;box-shadow:0 6px 18px #0005}
+.btn.g{background:#ffffff0d;color:var(--ink)}
+h2.t{background:linear-gradient(90deg,#fff,var(--a));-webkit-background-clip:text;background-clip:text;color:transparent}
+.dot{border-color:var(--k,#2dd4bf)}.node.done .dot{background:var(--k,#2dd4bf)}.node button:hover{border-color:var(--k,#2dd4bf)}.node small{color:var(--k,#93a7bd)}
+.node.rv:not(.in){opacity:0;transform:translateY(26px)}.node{transition:opacity .6s,transform .6s}
+.pbar{max-width:760px;margin:26px auto 0;color:var(--mute);text-align:center}.pbar .bar{height:10px;margin-top:8px}
+#auth{position:fixed;inset:0;z-index:100;display:none;place-items:center;padding:20px;background:linear-gradient(#070f1c99,#070f1c),var(--hero) center/cover}#auth.on{display:grid}
+#auth input{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;margin:6px 0;font:inherit}
+#toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,30px);background:var(--bg2);border:1px solid var(--a);padding:12px 22px;border-radius:99px;opacity:0;pointer-events:none;transition:.3s;z-index:90}#toast.on{opacity:1;transform:translate(-50%,0)}
+.cf{position:fixed;top:-20px;width:8px;height:14px;z-index:99;animation:fall 2.2s ease-in forwards}@keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+.drop{display:block;border:2px dashed var(--a);border-radius:16px;padding:34px 16px;text-align:center;cursor:pointer;background:#ffffff08;transition:.2s}
+.drop:hover,.drop.over,.drop:focus-visible{background:#f472b622;border-style:solid}
+.drop b{display:block;font:600 20px Fraunces,serif;margin:6px 0}
+.btn.rec{background:linear-gradient(135deg,#ef4444,#f97316);color:#fff;animation:pulse 1.2s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 8px #ef444433}}
+</style>
+</head>
+<body>
+<nav id="nav"><b>🧭 Pathfinder</b></nav>
+
+<section id="roadmap" class="on">
+  <div class="hero"><h1>Find the career that fits you, then follow the path.</h1>
+<p>Assess your skills, get matched to careers, and follow a clear roadmap from student to hired.</p>
+<div class="cta"><button class="btn" onclick="go('assess')">Start free assessment</button><button class="btn g" onclick="document.getElementById('map').scrollIntoView({behavior:'smooth'})">Explore the roadmap</button></div>
+<div class="stats"><div><b>7</b>roadmap stages</div><div><b>6</b>career paths</div><div><b>4</b>AI tools</div></div></div>
+  <div class="pbar"><span id="pt"></span><div class="bar"><i id="pf" style="width:0"></i></div></div>
+  <div class="map" id="map"></div>
+</section>
+
+<section id="assess">
+  <h2 class="t">Skill assessment</h2>
+  <p class="sub">Rate yourself honestly, add your grades, and pick interests. Your career matches update instantly.</p>
+  <div class="grid">
+    <div class="card"><h3>Competencies</h3><div id="sliders"></div></div>
+    <div class="card"><h3>Academics &amp; interests</h3>
+      <label>Average grade: <b id="gv">75</b>%</label><input type="range" id="grade" min="35" max="100" value="75">
+      <p style="margin:18px 0 8px;color:var(--mute)">Interests</p><div id="chips"></div>
+    </div>
+  </div>
+</section>
+
+<section id="careers">
+  <h2 class="t">Career recommendations</h2>
+  <p class="sub">Ranked by how well your skills and interests fit each path.</p>
+  <div class="card"><h3>Industry demand trends (illustrative)</h3><div id="tr"></div></div><br><div class="grid" id="carList"></div>
+</section>
+
+<section id="resume">
+  <h2 class="t">Resume analyzer</h2>
+  <p class="sub">Upload your resume as PDF, DOCX or TXT. It is read inside your browser and never sent anywhere.</p>
+  <div class="grid">
+    <div class="card"><label>Target career</label><select id="rt"></select><br><br>
+      <label class="drop" id="drop" tabindex="0"><span style="font-size:34px">📄</span><b>Drop your resume here</b><span class="sub" style="margin:0">or click to choose a file, or press Ctrl+V to paste a copied file</span><input type="file" id="rf" accept=".pdf,.docx,.txt" hidden></label>
+<p id="rname" style="margin:12px 0" class="ok"></p><button class="btn" id="rgo">Analyze resume</button></div>
+    <div class="card" id="rout"><h3>Results</h3><p class="sub">Your score, keyword gaps and fixes will show here.</p></div>
+  </div>
+</section>
+
+<section id="dash">
+  <h2 class="t">Dashboard</h2>
+  <p class="sub">Your progress at a glance.</p>
+  <div class="grid" id="dgrid"></div>
+</section>
+
+
+
+<section id="ai">
+  <h2 class="t">AI assistant</h2>
+  <p class="sub">Ask about careers, roadmaps, certifications, internships, resumes or trends.</p>
+  <div class="card"><div id="log"></div>
+    <div class="ask"><input type="text" id="q" placeholder="e.g. Which certifications should I do?"><button class="btn g" id="mic" aria-label="Speak">🎤</button><button class="btn g" id="spk">🔇 Voice off</button><button class="btn" id="send">Send</button></div></div>
+</section>
+
+<section id="jobs"><h2 class="t">Live job listings</h2><p class="sub">Pick a platform. Each one shows different openings, with no repeats across platforms.</p>
+<div id="jchips"></div><div class="ask" style="margin-top:8px"><input type="text" id="jq" placeholder="Or type another skill, e.g. golang"><button class="btn" id="jgo">Search</button></div>
+<div id="jlinks" class="cta" style="justify-content:flex-start"></div><div class="grid" id="jout"></div></section>
+<section id="interview"><h2 class="t">Mock interview</h2><p class="sub">Get a question, answer by typing or speaking, and receive instant feedback.</p>
+<div class="grid"><div class="card"><select id="is"></select><br><br><button class="btn" id="inew">New question</button><h3 id="iq" style="margin:16px 0">Press "New question" to begin.</h3>
+<textarea id="ia" placeholder="Type your answer. Use the STAR method: Situation, Task, Action, Result."></textarea><br><br><button class="btn g" id="imic">🎤 Speak answer</button> <button class="btn" id="igo">Get feedback</button></div>
+<div class="card" id="ifb"><h3>Feedback</h3><p class="sub">Your score and tips will show here.</p></div></div></section>
+<section id="plan"><h2 class="t">My 90-day plan</h2><p class="sub">Built from your assessment and roadmap progress.</p><div id="pbody"></div><br><button class="btn noprint" onclick="window.print()">Download as PDF</button></section>
+<div id="auth" class="on"><div class="card" style="width:min(420px,100%)"><h2 style="font-size:30px">🧭 Pathfinder</h2><p class="sub" style="margin:6px 0 16px">Log in to continue your journey.</p>
+<div class="ask" style="margin:0 0 12px"><button class="btn" id="tin">Log in</button><button class="btn g" id="tup">Sign up</button></div>
+<input id="an" type="text" placeholder="Full name" autocomplete="name" style="display:none"><input id="ae" type="email" placeholder="Email" autocomplete="email"><input id="ap" type="password" placeholder="Password (6+ characters)" autocomplete="current-password">
+<p id="aerr" class="no" role="alert"></p><button class="btn" id="ago" style="width:100%;margin-top:8px">Log in</button>
+<p class="sub" style="margin:14px 0 0;font-size:13px">Demo accounts are saved only in this browser. Use a backend for real security.</p></div></div>
+<div id="toast" role="status"></div>
+<footer>Pathfinder · AI Career &amp; Skill Development Assistant · Built for students</footer>
+<div id="dlg"><div class="p" id="dbody"></div></div>
+
+<script>
+const SK={code:"Programming",math:"Math & logic",design:"Design",comm:"Communication",lead:"Leadership",crea:"Creativity",data:"Data analysis"};
+const INT=["Technology","Business","Art","Science","Helping people","Building things"];
+const CAR=[
+{n:"Software Engineer",i:"💻",w:{code:3,math:2,data:1,crea:1},int:["Technology","Building things"],kw:["python","java","javascript","git","api","sql","react","algorithms","testing","github"],cert:["Meta Front-End / Back-End Certificates","AWS Cloud Practitioner","Google IT Automation"],intern:["Open-source contribution","Startup dev internship","GSoC / MLH Fellowship"],g:22},
+{n:"Data Scientist / AI Engineer",i:"🤖",w:{math:3,data:3,code:2},int:["Science","Technology"],kw:["python","machine learning","pandas","sql","statistics","tensorflow","pytorch","visualization","nlp","kaggle"],cert:["Google Data Analytics","DeepLearning.AI ML Specialization","Azure AI Fundamentals"],intern:["Kaggle competitions","Research assistant","Data analyst intern"],g:35},
+{n:"UX / Product Designer",i:"🎨",w:{design:3,crea:3,comm:1},int:["Art","Building things"],kw:["figma","wireframe","prototype","user research","usability","design system","accessibility","adobe","interaction"],cert:["Google UX Design","Interaction Design Foundation","Figma Certified"],intern:["Freelance redesigns","Design intern","Hackathon design lead"],g:16},
+{n:"Product / Business Analyst",i:"📊",w:{data:2,comm:3,lead:2,math:1},int:["Business","Technology"],kw:["stakeholder","requirements","excel","sql","agile","roadmap","kpi","dashboard","power bi","market"],cert:["Google Project Mgmt","Power BI Data Analyst","CBAP Foundation"],intern:["Business analyst intern","Case competitions","Product ops intern"],g:14},
+{n:"Cybersecurity Analyst",i:"🛡️",w:{code:2,math:1,data:2,lead:1},int:["Technology","Science"],kw:["network","linux","encryption","vulnerability","siem","firewall","owasp","incident","python","ctf"],cert:["CompTIA Security+","Google Cybersecurity","CEH"],intern:["CTF teams","SOC analyst intern","Bug bounty"],g:32},
+{n:"Healthcare / Social Impact Leader",i:"🌱",w:{comm:3,lead:3,crea:1},int:["Helping people","Science"],kw:["community","outreach","research","volunteer","policy","program","training","health","ngo","leadership"],cert:["Public Health Fundamentals","Project Management","Data for Social Good"],intern:["NGO internship","Field research","Campus initiatives"],g:12}];
+const NODES=[
+{ic:"🎯",t:"Set your target",time:"Week 1",why:"Vague goals lead to scattered learning. A clear target role tells you which skills to learn first and which to ignore.",top:["Shortlist 2 roles from the Careers tab","Read 10 real job posts and note repeated skills","Turn them into a personal skill checklist","Set a 6–10 month timeline with monthly milestones"],proj:"Create a one-page target sheet: role, must-have skills, 3 dream companies, deadline.",res:["Naukri and LinkedIn job posts","roadmap.sh","Career Details panel"]},
+{ic:"💡",t:"Code & logic basics",time:"Months 1–2",why:"Every tech role rests on logic and one language learned well. Depth in one language beats shallow tours of five.",top:["One language: Java, Python or JavaScript","Variables, loops, functions and OOP","Debugging and reading error messages","Git and GitHub from day one"],proj:"Build a command-line expense tracker and push it to GitHub with a clear README.",res:["CS50","Official Java or Python tutorials","Pro Git handbook"]},
+{ic:"🧩",t:"Choose your stack",time:"Months 2–3",why:"Employers hire for stacks. Pick one path, then go deep before branching out.",top:["Java: Spring Boot, REST, MySQL","Python: Django or Flask, pandas, ML basics","Web: HTML, CSS, JavaScript, React, Node","Cloud & DevOps: Linux, Docker, CI/CD"],proj:"Build a REST API with a database and test every endpoint in Postman.",res:["Spring.io guides","Django documentation","The Odin Project"]},
+{ic:"🧮",t:"Problem solving & DSA",time:"Months 3–6",why:"Most campus and product-company interviews test data structures and algorithms.",top:["Arrays, strings, hashing, two pointers","Recursion, trees and graphs","Sorting, searching, dynamic programming basics","Time and space complexity"],proj:"Solve 150 problems from easy to medium and keep a notebook of patterns.",res:["LeetCode","GeeksforGeeks","NeetCode roadmap"]},
+{ic:"🏗️",t:"Build & deploy projects",time:"Months 4–7",why:"Deployed projects prove you can finish. Recruiters open your GitHub before your certificates.",top:["Full-stack app with login and a database","One project using an API or ML model","Deploy live on Render, Vercel or AWS free tier","README with screenshots and a demo link"],proj:"Ship 3 live projects. One should solve a real problem on your campus.",res:["Render and Vercel","GitHub Pages","Devfolio hackathons"]},
+{ic:"🏅",t:"Certify & contribute",time:"Months 6–8",why:"Certificates and open-source work give proof when you have no job experience yet.",top:["One cloud or role-based certification","Open source: fix 'good first issue' bugs","Hackathons and coding contests","Technical posts on LinkedIn"],proj:"Earn one certification and get one pull request merged.",res:["AWS Cloud Practitioner","Google Career Certificates","GitHub good first issues"]},
+{ic:"💼",t:"Interview & placement",time:"Months 8–10",why:"Preparation turns skills into offers. Practise out loud, not only on paper.",top:["Resume tailored to each role (Resume tab)","Aptitude and communication practice","Mock interviews (Interview tab)","Comparing and negotiating offers"],proj:"Complete 10 mock interviews and apply to 30 roles with tailored resumes.",res:["Internshala","Company career pages","Pramp mock interviews"]}];
+const COL=["#2dd4bf","#60a5fa","#a78bfa","#f472b6","#fb923c","#fbbf24","#34d399"];
+const TR=[["AI & Machine Learning",35],["Cybersecurity",32],["Cloud & DevOps",26],["Software Development",22],["Data Analytics",20],["UX / Product Design",16],["Green & Health Tech",14]];
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const S={sk:Object.fromEntries(Object.keys(SK).map(k=>[k,5])),grade:75,int:new Set(),done:new Set(),tasks:[]};
+let SES="",USER="Guest";try{SES=localStorage.getItem("pf_session")||"";const u=JSON.parse(localStorage.getItem("pf_users")||"{}")[SES];if(u)USER=u.name;else SES=""}catch(e){}const KEY="pf_"+(SES||"guest");try{const x=JSON.parse(localStorage.getItem(KEY)||"{}");if(x.sk)S.sk=x.sk;if(x.grade)S.grade=x.grade;if(x.int)S.int=new Set(x.int);if(x.done)S.done=new Set(x.done);if(x.tasks)S.tasks=x.tasks}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify({sk:S.sk,grade:S.grade,int:[...S.int],done:[...S.done],tasks:S.tasks}))}catch(e){}};
+/* nav */
+const tabs=[["roadmap","Roadmap"],["assess","Assess"],["careers","Careers"],["resume","Resume"],["dash","Dashboard"],["jobs","Live jobs"],["interview","Interview"],["plan","My plan"],["ai","Assistant"]];
+tabs.forEach(([id,l])=>{const b=document.createElement("button");b.textContent=l;b.dataset.id=id;b.onclick=()=>go(id);$("#nav").append(b)});
+function go(id){$$("section").forEach(s=>s.classList.toggle("on",s.id===id));$$("nav button").forEach(b=>b.classList.toggle("on",b.dataset.id===id));if(id==="dash")dash();if(id==="careers")careers();if(id==="plan")plan();if(id==="jobs"&&!$("#jout").innerHTML)jobs();window.scrollTo(0,0)}
+/* roadmap */
+function map(){$("#map").innerHTML=NODES.map((n,i)=>`<div class="node ${S.done.has(i)?"done":""}"><span class="dot">${n.ic}</span><button data-i="${i}"><small>Stage ${i+1} · ${n.time}</small><h3>${n.t}</h3></button></div>`).join("");
+$$("#map button").forEach(b=>b.onclick=()=>open(+b.dataset.i))}
+function open(i){const n=NODES[i],d=S.done.has(i);
+$("#dbody").innerHTML=`<button class="btn g" onclick="dlg.classList.remove('on')">Close</button><h2>${n.ic} ${n.t}</h2><span class="tag">${n.time}</span>
+<h4>Why it matters</h4><p>${n.why}</p><h4>Key concepts</h4><ul>${n.top.map(t=>`<li>${t}</li>`).join("")}</ul>
+<h4>Practice project</h4><p>${n.proj}</p><h4>Resources</h4>${n.res.map(t=>`<span class="tag">${t}</span>`).join("")}<br><br>
+<button class="btn" id="dn">${d?"Mark as not done":"Mark stage complete"}</button>`;
+$("#dn").onclick=()=>{d?S.done.delete(i):(S.done.add(i),confetti(),toast("Stage complete! 🎉"));save();map();dlg.classList.remove("on")};dlg.classList.add("on");$("#dbody button").focus()}
+const dlg=$("#dlg");dlg.onclick=e=>{if(e.target===dlg)dlg.classList.remove("on")};document.onkeydown=e=>{if(e.key==="Escape")dlg.classList.remove("on")};
+/* assess */
+$("#sliders").innerHTML=Object.entries(SK).map(([k,l])=>`<div class="row"><span>${l}</span><b id="v${k}">${S.sk[k]}</b></div><input type="range" min="0" max="10" value="${S.sk[k]}" data-k="${k}" aria-label="${l}">`).join("");
+$$("#sliders input").forEach(r=>r.oninput=()=>{S.sk[r.dataset.k]=+r.value;$("#v"+r.dataset.k).textContent=r.value;save()});
+$("#grade").value=S.grade;$("#gv").textContent=S.grade;$("#grade").oninput=e=>{S.grade=+e.target.value;$("#gv").textContent=S.grade;save()};
+$("#chips").innerHTML=INT.map(t=>`<span class="tag chip ${S.int.has(t)?"on":""}" tabindex="0" role="button">${t}</span>`).join("");
+$$(".chip").forEach(c=>{const f=()=>{const t=c.textContent;S.int.has(t)?S.int.delete(t):S.int.add(t);c.classList.toggle("on");save()};c.onclick=f;c.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();f()}}});
+/* careers */
+function score(c){const w=Object.entries(c.w),max=w.reduce((a,[,x])=>a+x*10,0);let s=w.reduce((a,[k,x])=>a+x*S.sk[k],0)/max*80;s+=c.int.filter(i=>S.int.has(i)).length*6;s+=(S.grade-35)/65*8;return Math.min(99,Math.round(s))}
+const ranked=()=>CAR.map(c=>({...c,s:score(c)})).sort((a,b)=>b.s-a.s);
+function careers(){$("#carList").innerHTML=ranked().map((c,i)=>`<div class="card"><h3>${c.i} ${c.n}</h3><button class="btn g" style="float:right;padding:6px 14px;margin-top:-40px" onclick="cdet('${c.n}')">Details</button><div class="row"><span>${i==0?"Best match":"Match"}</span><b>${c.s}%</b></div><div class="bar"><i style="width:${c.s}%"></i></div>
+<div class="row"><span>Market growth</span><b>+${c.g}% / yr</b></div><p style="margin-top:14px"><b>Certifications</b></p><ul>${c.cert.map(x=>`<li style="margin-left:18px">${x}</li>`).join("")}</ul>
+<p style="margin-top:10px"><b>Internships</b></p><ul>${c.intern.map(x=>`<li style="margin-left:18px">${x}</li>`).join("")}</ul></div>`).join("")}
+$("#rt").innerHTML=CAR.map((c,i)=>`<option value="${i}">${c.n}</option>`).join("");
+/* resume */
+let RT="";function analyze(){const t=RT,l=t.toLowerCase(),c=CAR[+$("#rt").value];
+if(t.trim().length<80){$("#rout").innerHTML="<h3>Results</h3><p class='no'>Couldn't read enough text from this file. Use a text-based PDF, DOCX or TXT (scanned image PDFs aren't supported).</p>";return}
+const hit=c.kw.filter(k=>l.includes(k)),miss=c.kw.filter(k=>!l.includes(k));
+const verbs=(l.match(/\b(built|led|designed|developed|created|improved|launched|analyzed|managed|won|reduced|increased)\b/g)||[]).length;
+const nums=(t.match(/\d+%?/g)||[]).length,words=t.split(/\s+/).length;
+const ck=[[/@/.test(t),"Contact email present"],[verbs>=4,"Strong action verbs ("+verbs+" found)"],[nums>=4,"Quantified results ("+nums+" numbers)"],[words>=150&&words<=700,"Length fits one to two pages ("+words+" words)"],[/project/i.test(t),"Projects section"],[/education|b\.?tech|degree|university/i.test(t),"Education section"]];
+const sc=Math.round(hit.length/c.kw.length*55+ck.filter(x=>x[0]).length/ck.length*45);
+$("#rout").innerHTML=`<h3>Results</h3><div class="big">${sc}/100</div><div class="bar"><i style="width:${sc}%"></i></div>
+<p style="margin-top:14px"><b>Keywords found:</b> ${hit.map(k=>`<span class="tag ok">${k}</span>`).join("")||"none"}</p><p><b>Missing for ${c.n}:</b> ${miss.map(k=>`<span class="tag no">${k}</span>`).join("")||"none"}</p>
+<p style="margin:10px 0 4px"><b>Checklist</b></p>${ck.map(([o,m])=>`<div class="${o?"ok":"no"}">${o?"✓":"✗"} ${m}</div>`).join("")}
+<p style="margin-top:12px;color:var(--mute)">Add the missing keywords only where they are true, and turn duties into results, like "cut load time by 30%".</p>`}
+/* dashboard */
+function dash(){const r=ranked(),top=r[0],p=Math.round(S.done.size/NODES.length*100),C=2*Math.PI*52,nxt=NODES.findIndex((_,i)=>!S.done.has(i));
+const avg=(Object.values(S.sk).reduce((a,b)=>a+b,0)/7).toFixed(1);
+$("#dgrid").innerHTML=`<div class="card"><h3>Roadmap progress</h3><svg viewBox="0 0 130 130" width="130"><circle cx="65" cy="65" r="52" fill="none" stroke="#26405e" stroke-width="12"/><circle cx="65" cy="65" r="52" fill="none" stroke="#5eead4" stroke-width="12" stroke-linecap="round" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-p/100)}" transform="rotate(-90 65 65)"/><text x="65" y="72" text-anchor="middle" fill="#eaf1f8" font-size="24" font-family="Fraunces">${p}%</text></svg>
+<p>${nxt<0?"All stages complete. Keep learning!":"Next: <b>"+NODES[nxt].t+"</b>"}</p></div>
+<div class="card"><h3>Top match</h3><div class="big">${top.s}%</div><p>${top.i} ${top.n}</p><p class="sub" style="margin:8px 0 0">Average skill level ${avg}/10 · Grade ${S.grade}%</p></div>
+<div class="card"><h3>Skill profile</h3>${Object.entries(SK).map(([k,l])=>`<div class="row"><span>${l}</span><b>${S.sk[k]}/10</b></div><div class="bar"><i style="width:${S.sk[k]*10}%"></i></div>`).join("")}</div>
+<div class="card"><h3>Skill gaps for ${top.n}</h3>${Object.entries(top.w).sort((a,b)=>S.sk[a[0]]-S.sk[b[0]]).map(([k])=>`<div class="row"><span>${SK[k]}</span><b class="${S.sk[k]<6?"no":"ok"}">${S.sk[k]<6?"Improve":"Strong"}</b></div>`).join("")}<p style="margin-top:12px;color:var(--mute)">Target certification: ${top.cert[0]}</p></div>`}
+/* trends */
+$("#tr").innerHTML=TR.map(([n,v])=>`<div class="row"><span>${n}</span><b>+${v}% / yr</b></div><div class="bar"><i style="width:${v*2.6}%"></i></div>`).join("");
+/* assistant */
+let talk=false;const log=$("#log");
+function say(t,u){const d=document.createElement("div");d.className="m"+(u?" u":"");d.textContent=t;log.append(d);log.scrollTop=log.scrollHeight;if(!u&&talk&&window.speechSynthesis)speechSynthesis.speak(new SpeechSynthesisUtterance(t))}
+function reply(q){q=q.toLowerCase();const t=ranked()[0];
+if(/cert|course/.test(q))return`For ${t.n}, start with: ${t.cert.join("; ")}. Pick one, book the exam date, and build a project alongside it.`;
+if(/intern|job|experience/.test(q))return`Good internship routes for ${t.n}: ${t.intern.join("; ")}. Aim for 20 tailored applications, and use the Resume tab first.`;
+if(/resume|cv/.test(q))return"Open the Resume tab, pick your target career and paste your text. Focus on the missing keywords and quantified results.";
+if(/trend|future|demand|salary/.test(q))return"Fastest growing right now: "+TR.slice(0,3).map(x=>x[0]+" (+"+x[1]+"%)").join(", ")+". Open the Trends tab for the full list.";
+if(/roadmap|start|plan|learn/.test(q)){const i=NODES.findIndex((_,i)=>!S.done.has(i));return i<0?"You've finished every stage. Deepen one portfolio project.":"Your next stage is '"+NODES[i].t+"'. Open it on the Roadmap tab for concepts, a practice project and resources."}
+if(/career|best|suit|recommend|which/.test(q))return`Based on your profile your top match is ${t.n} (${t.s}%). Runners-up: ${ranked().slice(1,3).map(c=>c.n).join(" and ")}.`;
+if(/skill|improve|weak/.test(q)){const k=Object.entries(S.sk).sort((a,b)=>a[1]-b[1])[0][0];return`Your lowest skill is ${SK[k]} (${S.sk[k]}/10). Give it 30 minutes a day and build one small project around it.`}
+return"I can help with career matches, roadmap next steps, certifications, internships, resumes, skill gaps and trends. Try asking one of those."}
+const ask=()=>{const v=$("#q").value.trim();if(!v)return;say(v,1);$("#q").value="";setTimeout(()=>say(reply(v)),350)};
+$("#send").onclick=ask;$("#q").onkeydown=e=>{if(e.key==="Enter")ask()};
+say("Hi! I'm Pathfinder. Ask me what to learn next, which career fits you, or how to improve your resume.");
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+/* auth (demo accounts stored in this browser) */
+if(SES){$("#auth").classList.remove("on");const ab=document.createElement("button");ab.className="acct";ab.textContent="👤 "+USER.slice(0,14)+" · Log out";ab.onclick=()=>{try{localStorage.removeItem("pf_session")}catch(e){}location.reload()};$("#nav").append(ab);$(".hero").insertAdjacentHTML("afterbegin",`<span class="tag">Welcome back, ${esc(USER)} 👋</span><br><br>`)}
+let am="in";
+function amode(m){am=m;$("#an").style.display=m==="up"?"block":"none";$("#ago").textContent=m==="up"?"Create account":"Log in";$("#tin").className="btn"+(m==="in"?"":" g");$("#tup").className="btn"+(m==="up"?"":" g");$("#aerr").textContent=""}
+$("#tin").onclick=()=>amode("in");$("#tup").onclick=()=>amode("up");
+async function hash(t){try{const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(t));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,"0")).join("")}catch(e){return btoa(unescape(encodeURIComponent(t)))}}
+$("#ago").onclick=async()=>{const n=$("#an").value.trim(),e=$("#ae").value.trim().toLowerCase(),p=$("#ap").value,er=$("#aerr");let U={};try{U=JSON.parse(localStorage.getItem("pf_users")||"{}")}catch(x){}
+if(!/^\S+@\S+\.\S+$/.test(e))return er.textContent="Enter a valid email address.";
+if(p.length<6)return er.textContent="Password must be at least 6 characters.";
+const h=await hash(e+p);
+if(am==="up"){if(n.length<2)return er.textContent="Enter your name.";if(U[e])return er.textContent="This email already has an account. Log in instead.";U[e]={name:n,h}}
+else if(!U[e]||U[e].h!==h)return er.textContent="Email or password is incorrect.";
+try{localStorage.setItem("pf_users",JSON.stringify(U));localStorage.setItem("pf_session",e)}catch(x){return er.textContent="Browser storage is blocked, so login can't be saved."}
+location.reload()};
+["an","ae","ap"].forEach(i=>$("#"+i).onkeydown=ev=>{if(ev.key==="Enter")$("#ago").click()});
+/* resume file upload */
+const CDN="https://cdnjs.cloudflare.com/ajax/libs/";
+const lib=u=>new Promise((ok,no)=>{const e=document.createElement("script");e.src=u;e.onload=ok;e.onerror=()=>no(new Error("lib"));document.head.append(e)});
+async function readFile(f){const n=f.name.toLowerCase();
+if(n.endsWith(".txt"))return f.text();
+if(n.endsWith(".docx")){if(!window.mammoth)await lib(CDN+"mammoth/1.6.0/mammoth.browser.min.js");return(await mammoth.extractRawText({arrayBuffer:await f.arrayBuffer()})).value}
+if(n.endsWith(".pdf")){if(!window.pdfjsLib){await lib(CDN+"pdf.js/3.11.174/pdf.min.js");const w=await(await fetch(CDN+"pdf.js/3.11.174/pdf.worker.min.js")).text();pdfjsLib.GlobalWorkerOptions.workerSrc=URL.createObjectURL(new Blob([w],{type:"text/javascript"}))}
+const pdf=await pdfjsLib.getDocument({data:new Uint8Array(await f.arrayBuffer())}).promise;let t="";for(let i=1;i<=pdf.numPages;i++){const c=await(await pdf.getPage(i)).getTextContent();t+=c.items.map(x=>x.str).join(" ")+"\n"}return t}
+throw new Error("type")}
+async function pick(f){if(!f)return;$("#rname").textContent="Reading "+f.name+"…";
+try{RT=await readFile(f);$("#rname").textContent="✓ "+f.name;analyze()}catch(e){RT="";$("#rname").textContent="";$("#rout").innerHTML="<h3>Results</h3><p class='no'>Couldn't read that file. Upload a PDF, DOCX or TXT and check your internet connection (needed once to load the file reader).</p>"}}
+$("#rf").onchange=e=>pick(e.target.files[0]);$("#rgo").onclick=()=>RT?analyze():$("#rf").click();$("#rt").onchange=()=>{if(RT)analyze()};
+const dz=$("#drop");dz.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();$("#rf").click()}};
+["dragenter","dragover"].forEach(v=>dz.addEventListener(v,e=>{e.preventDefault();dz.classList.add("over")}));
+["dragleave","drop"].forEach(v=>dz.addEventListener(v,e=>{e.preventDefault();dz.classList.remove("over")}));
+dz.addEventListener("drop",e=>pick(e.dataTransfer.files[0]));
+document.addEventListener("paste",e=>{const f=e.clipboardData&&e.clipboardData.files[0];if(f&&$("#resume").classList.contains("on"))pick(f)});
+/* effects */
+function toast(t){const e=$("#toast");e.textContent=t;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),2200)}
+function confetti(){if(matchMedia("(prefers-reduced-motion:reduce)").matches)return;for(let i=0;i<70;i++){const e=document.createElement("i");e.className="cf";e.style.cssText=`left:${Math.random()*100}vw;background:hsl(${Math.random()*360},90%,60%);animation-delay:${Math.random()*.5}s`;document.body.append(e);setTimeout(()=>e.remove(),2800)}}
+function prog(){$("#pt").textContent=`Journey progress: ${S.done.size} of ${NODES.length} stages`;$("#pf").style.width=S.done.size/NODES.length*100+"%"}
+let shown=false;function reveal(){$$(".node").forEach((n,i)=>n.style.setProperty("--k",COL[i]));if(shown||!("IntersectionObserver" in window))return;shown=true;const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("in");io.unobserve(e.target)}}),{threshold:.15});$$(".node").forEach(n=>{n.classList.add("rv");io.observe(n)})}
+const m0=map;map=function(){m0();prog();reveal()};
+$$(".stats b").forEach(b=>{const t=+b.textContent;let v=0;const iv=setInterval(()=>{b.textContent=++v;if(v>=t)clearInterval(iv)},110)});
+/* voice */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let REC=null;
+function listen(inp,btn,cb){
+if(!SR){toast("Voice input works in Chrome or Edge. Please switch browser.");return}
+if(REC){REC.stop();return}
+const r=new SR();REC=r;r.lang="en-IN";r.continuous=true;r.interimResults=true;const base=inp.value.trim()?inp.value.trim()+" ":"",lab=btn.textContent;let fin="";
+r.onstart=()=>{btn.textContent="⏹ Stop";btn.classList.add("rec");toast("Listening… speak now")};
+r.onresult=e=>{let it="";for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)fin+=t+" ";else it+=t}inp.value=(base+fin+it).trim();inp.scrollTop=inp.scrollHeight};
+r.onerror=e=>toast({"not-allowed":"Microphone is blocked. Allow it in the address bar and open the page with Live Server, not file://.","service-not-allowed":"Microphone is blocked. Allow it in the address bar and open the page with Live Server, not file://.","no-speech":"No speech heard. Try again.","network":"Voice needs an internet connection.","audio-capture":"No microphone found."}[e.error]||"Voice error: "+e.error);
+r.onend=()=>{REC=null;btn.textContent=lab;btn.classList.remove("rec");cb&&cb()};
+try{r.start()}catch(x){REC=null}}
+$("#mic").onclick=()=>listen($("#q"),$("#mic"),()=>{if($("#q").value.trim())ask()});
+$("#spk").onclick=e=>{talk=!talk;e.target.textContent=talk?"🔊 Voice on":"🔇 Voice off"};
+/* interview */
+const IQ=[["Explain a bug you fixed and how you found it.","How would you design a URL shortener?"],["How do you handle missing or biased data?","Explain overfitting to a non-technical person."],["Walk me through your design process.","How do you handle critical feedback on a design?"],["How do you prioritise competing requests?","How would you measure a feature's success?"],["How would you respond to a suspected breach?","Explain encryption versus hashing."],["How do you build trust in a community?","Describe leading a team through conflict."]];
+const BQ=["Tell me about yourself.","Describe a time you failed and what you learned.","Why should we hire you?"];
+$("#is").innerHTML=CAR.map((c,i)=>`<option value="${i}">${c.n}</option>`).join("");
+$("#inew").onclick=()=>{const i=+$("#is").value,p=[...IQ[i],...BQ];$("#iq").textContent=p[Math.floor(Math.random()*p.length)];$("#ifb").innerHTML="<h3>Feedback</h3><p class='sub'>Answer, then press Get feedback.</p>"};
+$("#imic").onclick=()=>listen($("#ia"),$("#imic"));
+$("#igo").onclick=()=>{const t=$("#ia").value,l=t.toLowerCase(),w=t.trim().split(/\s+/).filter(Boolean).length,c=CAR[+$("#is").value];
+if(w<15){$("#ifb").innerHTML="<h3>Feedback</h3><p class='no'>Write or speak at least 15 words first.</p>";return}
+const star=["situation","task","action","result","because","learned","outcome"].filter(x=>l.includes(x)).length,num=/\d/.test(t),kw=c.kw.filter(k=>l.includes(k)).length;
+const ck=[[w>=60&&w<=220,"Length "+w+" words (aim for 60–220)"],[star>=2,"Clear structure (STAR terms: "+star+")"],[num,"Includes a measurable result"],[kw>=1,"Uses role keywords ("+kw+")"]];
+const sc=Math.min(100,Math.round(ck.filter(x=>x[0]).length*20+Math.min(star,4)*3+Math.min(kw,3)*3));
+$("#ifb").innerHTML=`<h3>Feedback</h3><div class="big">${sc}/100</div><div class="bar"><i style="width:${sc}%"></i></div><br>${ck.map(([o,m])=>`<div class="${o?"ok":"no"}">${o?"✓":"✗"} ${m}</div>`).join("")}<p style="margin-top:12px;color:var(--mute)">Tip: state the situation briefly, spend most time on your action, and end with a number.</p>`};
+/* live jobs: one platform at a time, no repeats across platforms */
+const PL=[["☕ Java","java"],["🐍 Python","python"],["🟨 JavaScript","javascript"],["📈 Data & AI","data"],["☁️ DevOps","devops"],["🎨 Design","design"],["🛡️ Security","security"]],SEEN=new Set(),CACHE={};
+const RX={java:/\bjava\b/i,python:/python/i,javascript:/javascript|react|node|frontend|front-end/i,data:/data|machine learning|analyst/i,devops:/devops|cloud|sre|aws/i,design:/design|ux|ui\b/i,security:/security|soc|cyber/i};
+const SMP={java:[["Java Backend Developer","Spring Boot · REST · MySQL"],["Java Full-Stack Intern","Java · React · Git"]],python:[["Python Developer","Django · REST · PostgreSQL"],["Automation Engineer","Python · Selenium · CI"]],javascript:[["React Frontend Developer","React · TypeScript · CSS"],["Node.js Developer","Express · MongoDB · APIs"]],data:[["Data Analyst","SQL · Power BI · Excel"],["ML Engineer Intern","Python · scikit-learn · Pandas"]],devops:[["DevOps Engineer","Docker · Kubernetes · CI/CD"],["Cloud Support Associate","AWS · Linux · Networking"]],design:[["UI/UX Designer","Figma · Prototyping · Research"],["Product Design Intern","Design systems · Usability"]],security:[["SOC Analyst","SIEM · Networking · Incident response"],["Security Intern","OWASP · Linux · Python"]]};
+$("#jchips").innerHTML=PL.map(([l,k])=>`<span class="tag chip" tabindex="0" role="button" data-k="${k}">${l}</span>`).join("");
+$$("#jchips .chip").forEach(c=>{const f=()=>jobs(c.dataset.k);c.onclick=f;c.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();f()}}});
+$("#jgo").onclick=()=>jobs($("#jq").value.trim().toLowerCase());$("#jq").onkeydown=e=>{if(e.key==="Enter")jobs($("#jq").value.trim().toLowerCase())};
+const smp=(k,m)=>`<p class="sub" style="grid-column:1/-1">${m}</p>`+(SMP[k]||[]).map(([t,s])=>`<div class="card"><h3>${t}</h3><p>${s}</p><span class="tag">Sample role</span></div>`).join("");
+async function jobs(k){k=k||"java";$$("#jchips .chip").forEach(x=>x.classList.toggle("on",x.dataset.k===k));const o=$("#jout"),q=encodeURIComponent(k);
+$("#jlinks").innerHTML=`<a class="btn" style="text-decoration:none" target="_blank" rel="noopener" href="https://www.linkedin.com/jobs/search/?keywords=${q}%20developer">LinkedIn</a><a class="btn" style="text-decoration:none" target="_blank" rel="noopener" href="https://www.naukri.com/${q}-developer-jobs">Naukri</a><a class="btn" style="text-decoration:none" target="_blank" rel="noopener" href="https://internshala.com/internships/${q}-internship">Internshala</a>`;
+if(CACHE[k]){o.innerHTML=CACHE[k];return}o.innerHTML="<p class='sub'>Loading "+esc(k)+" jobs…</p>";
+try{const r=await fetch("https://remotive.com/api/remote-jobs?limit=50&search="+q),d=await r.json(),rx=RX[k]||new RegExp(k.replace(/[^\w ]/g,"")||"x","i");
+const L=d.jobs.filter(j=>rx.test(j.title+" "+(j.tags||[]).join(" "))&&!SEEN.has(j.id)).slice(0,6);L.forEach(j=>SEEN.add(j.id));
+CACHE[k]=L.length?L.map(j=>`<div class="card"><h3>${esc(j.title)}</h3><p>${esc(j.company_name)}</p><p class="sub" style="margin:4px 0 10px">${esc(j.job_type||"")} ${esc(j.candidate_required_location||"")}</p>${(j.tags||[]).slice(0,4).map(t=>`<span class="tag">${esc(t)}</span>`).join("")}<br><a class="btn" style="text-decoration:none;display:inline-block;margin-top:8px" href="${esc(j.url)}" target="_blank" rel="noopener">View job</a></div>`).join(""):smp(k,"No new live listings for this platform right now. Try the site buttons above.");o.innerHTML=CACHE[k]}
+catch(e){o.innerHTML=smp(k,"Live feed unavailable. Showing sample roles.")}}
+/* 90-day plan + PDF (browser print → Save as PDF) */
+function plan(){const t=ranked()[0],g=Object.keys(t.w).sort((a,b)=>S.sk[a]-S.sk[b]).slice(0,2).map(k=>SK[k]),left=NODES.filter((_,i)=>!S.done.has(i)).map(n=>n.t);
+$("#pbody").innerHTML=`<div class="grid"><div class="card"><h3>${t.i} ${esc(USER)} → ${t.n}</h3><p>Match ${t.s}% · Grade ${S.grade}% · Growth +${t.g}%/yr</p><p>Focus skills: <b>${g.join(", ")}</b></p></div>
+<div class="card"><h3>Days 1–30</h3><p>Study ${g[0]} and ${g[1]} daily for 45 minutes. Finish one structured course.</p></div>
+<div class="card"><h3>Days 31–60</h3><p>Ship a portfolio project. Prepare for <b>${t.cert[0]}</b>.</p></div>
+<div class="card"><h3>Days 61–90</h3><p>Apply to 20 roles, e.g. ${t.intern[0]}. Practise 5 mock interviews.</p></div>
+<div class="card"><h3>Roadmap stages left</h3><p>${left.join(", ")||"All complete"}</p></div></div>`}
+/* career detail, radar, goals */
+const SAL=["4–15","6–20","4–14","4–12","5–16","3–9"],WHAT=["Design, build and ship software products.","Turn data into predictions and decisions.","Research users and craft intuitive interfaces.","Bridge business needs and technical teams.","Find and fix weaknesses before attackers do.","Lead programs that improve communities and health."];
+function cdet(n){const i=CAR.findIndex(c=>c.n===n),c=CAR[i];
+$("#dbody").innerHTML=`<button class="btn g" onclick="dlg.classList.remove('on')">Close</button><h2>${c.i} ${c.n}</h2><span class="tag">₹${SAL[i]} LPA entry (illustrative)</span><span class="tag">+${c.g}% / yr demand</span>
+<h4>What you do</h4><p>${WHAT[i]}</p><h4>Your skills vs target</h4>${Object.entries(c.w).map(([k,x])=>{const t=Math.min(10,x*3);return`<div class="row"><span>${SK[k]}</span><b class="${S.sk[k]>=t?"ok":"no"}">${S.sk[k]} / target ${t}</b></div><div class="bar"><i style="width:${S.sk[k]*10}%"></i></div>`}).join("")}
+<h4>Learn next</h4>${c.kw.slice(0,7).map(k=>`<span class="tag">${k}</span>`).join("")}<h4>Certifications</h4><ul>${c.cert.map(x=>`<li>${x}</li>`).join("")}</ul><h4>Internships</h4><ul>${c.intern.map(x=>`<li>${x}</li>`).join("")}</ul>`;dlg.classList.add("on")}
+function radar(){const k=Object.keys(SK),pt=(i,v)=>{const a=i*2*Math.PI/k.length-Math.PI/2;return[110+90*v*Math.cos(a),110+90*v*Math.sin(a)]};
+return`<svg viewBox="0 0 220 220" width="100%" style="max-width:320px" role="img" aria-label="Skill radar chart">${[.33,.66,1].map(v=>`<polygon points="${k.map((_,i)=>pt(i,v)).join(" ")}" fill="none" stroke="#22385a"/>`).join("")}<polygon points="${k.map((x,i)=>pt(i,S.sk[x]/10)).join(" ")}" fill="#2dd4bf55" stroke="#2dd4bf" stroke-width="2"/>${k.map((x,i)=>{const[a,b]=pt(i,1.2);return`<text x="${a}" y="${b}" fill="#93a7bd" font-size="8.5" text-anchor="middle">${SK[x].split(" ")[0]}</text>`}).join("")}</svg>`}
+function bindT(){$("#tl").innerHTML=S.tasks.map((t,i)=>`<div class="row" style="align-items:center"><label><input type="checkbox" data-t="${i}" ${t.d?"checked":""}> <span style="${t.d?"text-decoration:line-through;opacity:.6":""}">${esc(t.x)}</span></label><button class="btn g" style="padding:2px 10px" data-x="${i}" aria-label="Delete goal">×</button></div>`).join("")||"<p class='sub'>No goals yet. Add your first weekly goal.</p>";
+$$("#tl input").forEach(c=>c.onchange=()=>{S.tasks[c.dataset.t].d=c.checked;save();bindT()});$$("#tl [data-x]").forEach(b=>b.onclick=()=>{S.tasks.splice(+b.dataset.x,1);save();bindT()})}
+const d0=dash;dash=function(){d0();$("#dgrid").insertAdjacentHTML("beforeend",`<div class="card"><h3>Skill radar</h3><div style="text-align:center">${radar()}</div></div><div class="card"><h3>Weekly goals</h3><div class="ask"><input type="text" id="tk" placeholder="e.g. Finish 2 lessons"><button class="btn" id="tadd">Add</button></div><div id="tl"></div></div>`);
+$("#tadd").onclick=()=>{const v=$("#tk").value.trim();if(v){S.tasks.push({x:v.slice(0,80),d:false});save();$("#tk").value="";bindT()}};bindT()};
+map();go("roadmap");
+</script>
+</body>
+</html>
